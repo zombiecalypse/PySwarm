@@ -1,7 +1,13 @@
-
 Swarm=/home/aaron/Dropbox/Projects/Swarm {
-	src=Swarm filter="\(test_\)\@!*.py" {
-	}
-	tests=Swarm filter=**/test_*.py" {
-	}
+ Swarm.py
+ setup.py
+ test.sh
+ src=Swarm filter="\(test_\)\@!*.py" {
+  __init__.py
+  main.py
+  swarm.py
+  helpers.py
+ }
+ tests=Swarm filter="test_*.py" {
+ }
 }
