@@ -1,0 +1,7 @@
+
+Swarm=/home/aaron/Dropbox/Projects/Swarm {
+	src=Swarm filter="\(test_\)\@!*.py" {
+	}
+	tests=Swarm filter=**/test_*.py" {
+	}
+}
