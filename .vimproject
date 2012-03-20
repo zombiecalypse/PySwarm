@@ -4,9 +4,13 @@ Swarm=/home/aaron/Dropbox/Projects/Swarm {
  test.sh
  src=Swarm filter="\(test_\)\@!*.py" {
   __init__.py
+  helpers.py
   main.py
   swarm.py
-  helpers.py
+  cext=cext filter="*.h *.cpp" {
+   swarm.h
+   swarm.cpp
+  }
  }
  tests=Swarm filter="test_*.py" {
  }

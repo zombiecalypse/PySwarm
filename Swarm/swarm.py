@@ -1,60 +1,168 @@
-from pygame.sprite import Sprite, RenderUpdates
 from random import Random
-from math import exp, log, sqrt
+from pymunk import Body, Circle
+from pygame.sprite import Sprite, RenderUpdates
+from pygame.surface import Surface
+from pygame.draw import circle
+from pygame.locals import *
 from .helpers import *
+import logging
 
-class Swarm(RenderUpdates):
-    def __init__(self, x, y, n):
-        RenderUpdates.__init__(self)
+logger = logging.getLogger('Swarm')
+
+def setDebug():
+    logger.setLevel(logging.DEBUG)
+
+class Swarm(object):
+    def __init__(self, space, p, n):
         rand = Random()
+        self.elements = set()
+        self.attractors = set()
+        self.space = space
+        x, y = p
         for i in xrange(n):
-            dx, dy = [rand.normalvariate(0, 50) for x in range(2)]
-            elt = SwarmElement(x+dx, y+dy)
-            elt.add(self)
+            dx, dy = rand.normalvariate(0, 50), rand.normalvariate(0,50)
+            elt = SwarmElement((x+dx, y+dy))
+            self.elements.add(elt)
+            elt.addTo(self.space)
 
     def update(self):
-        RenderUpdates.update(self)
-        for el in self.sprites():
-            el.commit()
+        for e in self.elements:
+            e.update(self.elements, self.attractors)
 
-def pressure(x):
-    assert x >= 0
-    lx = log(x+1e-5)
-    return 1.0/(lx*exp(-lx**2))
+    def add_attractor(self, p):
+        self.attractors.add(Attractor(p))
 
-class SwarmElement(Sprite):
-    SIZE = 15
-    FAV_DIST = 2.0
-    def __init__(self, x, y):
-        Sprite.__init__(self)
-        self.image, self.rect = load_image('particle.png', -1)
-        self.rect.x, self.rect.y = (x,y)
-        self.dx = 0
-        self.dy = 0
-        self.new_x = 0.0
-        self.new_y = 0.0
-        self.new_dx = 0.0
-        self.new_dy = 0.0
-    def buddies(self):
-        return set(x for group in self.groups() for x in group if x != self)
+
+class Attractor(Circle):
+    def __init__(self, p):
+        Circle.__init__(self, Body(1e100,100), 5, (0,0))
+        self.body.position = p
+        self.friction = 0.5
+        self.collision_type = 2
     @property
-    def pos(self):
-        return (self.rect.x, self.rect.y)
-    def d(self, o):
-        return (o.rect.x - self.rect.x, o.rect.y - self.rect.y)
-    def dist(self, o):
-        return sqrt(sum(x*x for x in self.d(o)))
-    def update_by_pressure(self, o):
-        dx,dy = self.d(o)
-        pres = pressure(self.dist(o) / (self.FAV_DIST *self.SIZE))
-        self.new_dx += dx * pres * dt
-        self.new_dy += dy * pres * dt
+    def position(self):
+        return self.body.position
+    @property
+    def velocity(self):
+        return self.body.velocity
+
+def unwrap_self_update(*arg, **kwargs):
+    return SwarmElement.update(*arg, **kwargs)
+
+class SwarmElement(Circle):
+    def __init__(self, p):
+        Circle.__init__(self, Body(10,100), 2, (0,0))
+        self.body.position = p
+        self.friction = 0.5
+        self.collision_type = 2
+    def addTo(self, space):
+        space.add(self, self.body)
+
+    @property
+    def speed(self):
+        return 50
+
+    @property
+    def position(self):
+        return self.body.position
+    @property
+    def velocity(self):
+        return self.body.velocity
+
+    @property
+    def spartial_cohesion(self):
+        return 0.1
+    @property
+    def pulsar_cohesion(self):
+        return 0.05
+    def weight(self, o):
+        assert o!= self
+        return 1.0/o.position.get_dist_sqrd(self.position)
+    def weighted_by_distance(self, others):
+        return [(self.weight(o), o) for o in others if o != self and
+                self.weight(o) > self.threshold]
+    @property
+    def threshold(self):
+        return .1
+    def fweighted_avg(self, weighted, f):
+        mapped = ((w,f(x)) for w,x in weighted)
+        sum_weight, sum_val = reduce(lambda x,y: (x[0]+y[0],
+            x[0]*x[1]+y[0]*y[1]), mapped, (1,0))
+        return sum_val/sum_weight
+
+    def push_from(self, others):
+        for e in others:
+            dpos = (self.position - e.position)/(self.radius*5)
+            self.body.apply_force(dpos*(dpos.get_length()+1e-5)**-4
+                    *self.spartial_avoidance)
+
+    def attract_to(self, attractors):
+        for a in attractors:
+            dpos = a.position - self.position
+            self.body.apply_force(dpos*self.attractor_attractiveness)
+
+    @property
+    def spartial_avoidance(self):
+        return 100.0
+    @property
+    def attractor_attractiveness(self):
+        return 10.0
+    def update(self, others, attractors):
+        weighted = self.weighted_by_distance(others)
+        avg_pos = self.fweighted_avg(weighted, lambda x: x.position)
+        avg_vel = self.fweighted_avg(weighted, lambda x: x.velocity)
+        dpos = avg_pos - self.body.position
+        if dpos > self.radius*5:
+            self.body.apply_force((avg_pos - self.body.position)*self.spartial_cohesion)
+        self.body.apply_force((avg_vel - self.body.velocity)*self.pulsar_cohesion)
+
+        self.attract_to(attractors)
+        self.push_from(others)
+
+        self.body.velocity = self.body.velocity.normalized()*self.speed
+
+class SwarmGroup(RenderUpdates):
+    def __init__(self, swarm):
+        RenderUpdates.__init__(self)
+        self.swarm = swarm
+        for s in swarm.elements:
+            SwarmElementSprite(self, s)
+        for s in swarm.attractors:
+            AttractorSprite(self, s)
+
     def update(self):
-        self.new_x, self.new_y = self.rect.x, self.rect.y
-        for buddy in self.buddies():
-            self.update_by_pressure(buddy)
-    def commit(self):
-        self.rect.x = bound(self.new_x + self.dx * dt, MIN_X, MAX_X )
-        self.rect.y = bound(self.new_y + self.dx * dt, MIN_Y, MAX_Y)
-        self.dx = self.new_dx
-        self.dy = self.new_dy
+        self.swarm.update()
+        RenderUpdates.update(self)
+
+class AttractorSprite(Sprite):
+    def __init__(self, group, body):
+        Sprite.__init__(self, group)
+        self.body = body
+        bb = self.body.cache_bb()
+        self.image = Surface((bb.right - bb.left,bb.top - bb.bottom), SRCALPHA)
+        self.rect = self.image.get_rect()
+        self.rect.center = (avg(bb.right,bb.left), avg(bb.top, bb.bottom))
+        circle(self.image, THECOLORS['green'], (self.rect.width/2,
+            self.rect.height/2), self.rect.width/2)
+    def update(self):
+        bb = self.body.cache_bb()
+        self.rect.center = (avg(bb.right,bb.left), avg(bb.top, bb.bottom))
+
+class SwarmElementSprite(Sprite):
+    def __init__(self, group, body):
+        Sprite.__init__(self, group)
+        self.body = body
+        bb = self.body.cache_bb()
+        self.image = Surface((bb.right - bb.left,bb.top - bb.bottom), SRCALPHA)
+        self.rect = self.image.get_rect()
+        self.rect.center = (avg(bb.right,bb.left), avg(bb.top, bb.bottom))
+        circle(self.image, THECOLORS['black'], (self.rect.width/2,
+            self.rect.height/2), self.rect.width/2)
+    def update(self):
+        bb = self.body.cache_bb()
+        self.rect.center = (avg(bb.right,bb.left), avg(bb.top, bb.bottom))
+
+def generate_swarm(space, center = (200,200)):
+    swarm = Swarm( space, center, 10)
+    swarm.add_attractor((150,150))
+    return SwarmGroup(swarm)

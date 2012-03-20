@@ -2,6 +2,7 @@ import os.path
 import pygame
 import logging
 from pygame.locals import RLEACCEL
+from pymunk import Space
 logger = logging.getLogger("Loader")
 def setDebug():
     logger.setLevel(logging.DEBUG)
@@ -25,9 +26,21 @@ def load_image(name, colorKey = None):
     img = __IMAGES__[name] = (image, image.get_rect())
     return img
 
+def avg(*args):
+    if not args: return None
+
+    return sum(args)* 1.0/len(args)
+
 def bound(x, up, dn):
     return max(min(x, dn), up)
 
-dt = 0.01
+THECOLORS = dict(
+        black = pygame.color.Color(0,0,0,255),
+        green = pygame.color.Color(0,255,0,255)
+        )
+
+dt = 0.02
 MIN_X, MAX_X = 0, 640
 MIN_Y, MAX_Y = 0, 480
+
+space = Space()
