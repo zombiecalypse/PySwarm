@@ -1,0 +1,7 @@
+use-project boost : /usr/local/src/boost/ ;
+project swarm-python
+  : requirements <library>/boost/python//boost_python
+    ;
+
+import python ;
+python-extension pyswarm : python_swarm.cpp ;

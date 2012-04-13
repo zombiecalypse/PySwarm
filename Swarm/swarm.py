@@ -4,6 +4,7 @@ from pygame.sprite import Sprite, RenderUpdates
 from pygame.surface import Surface
 from pygame.draw import circle
 from pygame.locals import *
+from time import sleep
 from .helpers import *
 import logging
 
@@ -18,6 +19,7 @@ class Swarm(object):
         self.elements = set()
         self.attractors = set()
         self.space = space
+        self.running = True
         x, y = p
         for i in xrange(n):
             dx, dy = rand.normalvariate(0, 50), rand.normalvariate(0,50)
@@ -80,7 +82,7 @@ class SwarmElement(Circle):
         return 1.0/o.position.get_dist_sqrd(self.position)
     def weighted_by_distance(self, others):
         return [(self.weight(o), o) for o in others if o != self and
-                self.weight(o) > self.threshold]
+                o.position.get_distance(self.position) < 10*self.radius]
     @property
     def threshold(self):
         return .1
@@ -93,7 +95,7 @@ class SwarmElement(Circle):
     def push_from(self, others):
         for e in others:
             dpos = (self.position - e.position)/(self.radius*5)
-            self.body.apply_force(dpos*(dpos.get_length()+1e-5)**-4
+            self.body.apply_force(dpos*pow(dpos.get_length()+1e-5,-4)
                     *self.spartial_avoidance)
 
     def attract_to(self, attractors):
@@ -131,7 +133,7 @@ class SwarmGroup(RenderUpdates):
             AttractorSprite(self, s)
 
     def update(self):
-        self.swarm.update()
+        #self.swarm.update()
         RenderUpdates.update(self)
 
 class AttractorSprite(Sprite):
@@ -163,6 +165,7 @@ class SwarmElementSprite(Sprite):
         self.rect.center = (avg(bb.right,bb.left), avg(bb.top, bb.bottom))
 
 def generate_swarm(space, center = (200,200)):
-    swarm = Swarm( space, center, 10)
+    n_elt = 10
+    swarm = Swarm( space, center, n_elt)
     swarm.add_attractor((150,150))
     return SwarmGroup(swarm)

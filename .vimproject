@@ -7,9 +7,11 @@ Swarm=/home/aaron/Dropbox/Projects/Swarm {
   helpers.py
   main.py
   swarm.py
-  cext=cext filter="*.h *.cpp" {
-   swarm.h
-   swarm.cpp
+  cext=cext filter="*.h *.cpp *.sh Jamroot" {
+   python_swarm.h
+   python_swarm.cpp
+   build.sh
+   Jamroot
   }
  }
  tests=Swarm filter="test_*.py" {

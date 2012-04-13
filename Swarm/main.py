@@ -22,8 +22,9 @@ def main(options = dict()):
     bg = pygame.Surface(screen.get_size()).convert()
     bg.fill((200,200,200))
 
-    while True:
+    for i in range(1000):
         space.step(dt)
+        swarm.swarm.update()
         swarm.update()
         screen.blit(bg, (0,0))
         swarm.draw(screen)
