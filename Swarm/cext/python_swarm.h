@@ -46,10 +46,11 @@ class SwarmElementBuilder {
 };
 
 class SwarmElement {
-	const double POSITION_ATTRACTION() { return 1.0; }
-	const double VELOCITY_ATTRACTION() { return 1.0; }
-	const double PUSH_STRENGTH() { return 10; }
-	const double PUSH_RADIUS() { return 10; }
+	const double POSITION_ATTRACTION() const { return 1.0; }
+	const double VELOCITY_ATTRACTION() const { return 1.0; }
+	const double PUSH_STRENGTH() const { return 10; }
+	const double PUSH_RADIUS() const { return 10; }
+	const double SPEED() const { return 10; }
 
 	friend class Swarm;
 	position_v pos;
@@ -68,6 +69,7 @@ class SwarmElement {
 		double mass() const { return m; }
 		void accelerate(force_v);
 		void commit();
+		std::string str() const;
 };
 
 std::ostream& operator<<(std::ostream& out, const SwarmElement& se) {
@@ -84,7 +86,10 @@ class Swarm {
 	public:
 		std::vector<SwarmElement> elements;
 		void step(); 
-		SwarmElement operator[](int n) { return elements[n]; }
+		SwarmElement& operator[](int n) { return elements[n]; }
+		std::vector<SwarmElement> get_elements() { return elements; }
+		std::vector<SwarmElement>::const_iterator el_begin() const { return elements.begin(); }
+		std::vector<SwarmElement>::const_iterator el_end() const { return elements.end(); }
 		void add(SwarmElement e) { elements.push_back(e); }
 		void add(position_v, velocity_v);
 		void add(position_v);

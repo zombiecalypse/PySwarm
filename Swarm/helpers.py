@@ -2,7 +2,6 @@ import os.path
 import pygame
 import logging
 from pygame.locals import RLEACCEL
-from pymunk import Space
 logger = logging.getLogger("Loader")
 def setDebug():
     logger.setLevel(logging.DEBUG)
@@ -42,5 +41,3 @@ THECOLORS = dict(
 dt = 0.02
 MIN_X, MAX_X = 0, 640
 MIN_Y, MAX_Y = 0, 480
-
-space = Space()

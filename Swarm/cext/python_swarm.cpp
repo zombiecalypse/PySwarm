@@ -1,4 +1,5 @@
 #include "python_swarm.h"
+#include <math.h>
 #include <boost/python.hpp>
 #include <boost/accumulators/statistics/mean.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
@@ -6,6 +7,8 @@
 
 #include <boost/random.hpp>
 #include <boost/random/normal_distribution.hpp>
+
+#include <sstream>
 using namespace std;
 const double dt = 0.1;
 
@@ -17,6 +20,11 @@ VecBuilder::operator vec3() {
 	return e;
 }
 
+bool valid(vec3 p) {
+	using std::isnan;
+	return !(isnan(p(0)) || isnan(p(1)) || isnan(p(2)));
+}
+
 SwarmElementBuilder::SwarmElementBuilder() :
 	pos(zero_vec3(3)),
 	vel(zero_vec3(3)),
@@ -25,7 +33,11 @@ SwarmElement::SwarmElement(const SwarmElementBuilder& b) :
 	pos(b.pos),
 	vel(b.vel),
 	new_vel(b.vel),
-	m(b.m) { }
+	m(b.m) { 
+	assert(m > 0);
+	assert(valid(pos));
+	assert(valid(vel));
+}
 SwarmElement::SwarmElement() : 
 	pos(zero_vec3(3)), 
 	vel(zero_vec3(3)),
@@ -38,7 +50,7 @@ void SwarmElement::accelerate(force_v f) {
 
 void SwarmElement::commit() {
 	pos += vel * dt;
-	vel = new_vel;
+	vel = (SPEED()/norm_2(new_vel)) * new_vel;
 }
 
 void SwarmElement::assume_similar_position(position_v p) {
@@ -63,11 +75,22 @@ void SwarmElement::keep_distance(Swarm& s) {
 
 void Swarm::step() {
 	using namespace boost::accumulators;
-	accumulator_set<position_v, stats<tag::mean> > pos_mean;
-	accumulator_set<velocity_v, stats<tag::mean> > vel_mean;
+	vec3 pos_sum;
+	vec3 vel_sum;
+	const unsigned n = elements.size();
 	for (SwarmElement& e : elements) {
-		pos_mean(e.position());
-		vel_mean(e.velocity());
+		pos_sum += e.position() / n;
+		vel_sum += e.velocity() / n;
+	}
+	const vec3 pos_mean =  pos_sum;
+	const vec3 vel_mean =  vel_sum;
+	for (SwarmElement& e : elements) {
+		e.assume_similar_position(pos_mean);
+		e.assume_similar_velocity(vel_mean);
+		e.keep_distance(*this);
+	}
+	for (SwarmElement& e : elements) {
+		e.commit();
 	}
 }
 
@@ -98,15 +121,14 @@ void Swarm::add_random() {
 					.y(normal())
 					.z(normal()));
 	add(e);
-					
 }
-int main() {
-	Swarm swarm;
-	swarm.add_random();
-	for (SwarmElement& el : swarm.elements) {
-		cout << el << endl;
-	}
+
+std::string SwarmElement::str() const {
+	stringstream s;
+	s << *this;
+	return s.str();
 }
+
 
 using namespace boost::python;
 
@@ -121,11 +143,14 @@ struct Vec3ToTupleConvert {
 BOOST_PYTHON_MODULE(pyswarm) {
 	to_python_converter<vec3, Vec3ToTupleConvert<vec3> >();
 	class_<Swarm>("Swarm")
+		.add_property("elements", range(&Swarm::el_begin, &Swarm::el_end))
 		.def("add_random", &Swarm::add_random)
-		.def("__getitem__", &Swarm::operator[])
+		.def("step", &Swarm::step)
+		.def("__getitem__", &Swarm::operator[], return_value_policy<reference_existing_object>())
 		;
 	class_<SwarmElement>("SwarmElement")
-		.def("position", &SwarmElement::position)
-		.def("velocity", &SwarmElement::velocity)
+		.def_readonly("position", &SwarmElement::position)
+		.def_readonly("velocity", &SwarmElement::velocity)
+		.def("__str__", &SwarmElement::str)
 		;
 }
